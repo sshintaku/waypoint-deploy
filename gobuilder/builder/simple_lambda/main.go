@@ -11,6 +11,7 @@ func main() {
 }
 
 func HandleEvent(message Test) {
+	fmt.Println("Test Message: 1, 2, 3,...")
 	fmt.Println(message.Message)
 
 }

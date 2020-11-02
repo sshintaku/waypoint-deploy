@@ -3,38 +3,60 @@ package platform
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/hashicorp/waypoint-plugin-examples/gobuilder/registry"
 	"github.com/hashicorp/waypoint-plugin-sdk/component"
 	"github.com/hashicorp/waypoint-plugin-sdk/terminal"
 )
 
 type DeployConfig struct {
-	Region       string      `hcl:"region"`
-	SourceBinary string      `hcl:"binary"`
-	Lambda       LambdaInput `hcl:"lambda"`
+	Region      string           `hcl:"region"`
+	Lambda      LambdaInput      `hcl:"lambda"`
+	AwsSession  *session.Session `hcl:"awssession"`
+	AwsLambda   *lambda.Lambda   `hcl:"awslambda,optional"`
+	LambdaFiles FileInformation  `hcl:"filelocation"`
+}
+
+type FileInformation struct {
+	SourceBinary *string    `hcl:"sourcebinary,optional"`
+	SourceFolder *string    `hcl:"sourcefolder,optional"`
+	Layer        *LayerInfo `hcl:"layer,optional"`
+}
+
+type LayerInfo struct {
+	FolderLocation string `hcl:"folderlocation"`
+	Runtime        string `hcl:"runtimetype"`
 }
 
 type LambdaInput struct {
 	Description       string              `hcl:"description,optional"`
+	DryRun            *bool               `hcl:"dryrun,optional"`
 	FunctionName      string              `hcl:"functioname"`
-	RoleArn           string              `hcl:"rolearn"`
+	FunctionVersion   *string             `hcl:"functionversion,optional"`
+	RoleArn           *string             `hcl:"rolearn,optional"`
+	RevisionId        *string             `hcl:"revisionid,optional"`
 	DeadLetter        *DeadLetterConfig   `hcl:"deadletterqueue,optional"`
 	Environment       map[string]*string  `hcl:"environment,optional"`
 	FileSystemConfigs []*FileSystemConfig `hcl:"filesystemconfig,optional"`
 	KMSKeyArn         *string             `hcl:"kmskeyarn,optional"`
 	Layers            []*string           `hcl:"layers,optional"`
 	MemorySize        *int64              `hcl:"memorysize,optional"`
-	Publish           *bool               `hcl:"publish,optional"`
+	Publish           bool                `hcl:"publish"`
 	Runtime           string              `hcl:"runtime"`
 	Tags              map[string]*string  `hcl:"tags,optional"`
+	UpdateLambda      *bool               `hcl:"updatelambda,optional"`
 
 	/* Default timeout value is 3 seconds.  Maximum allowed is 900.  This number is in metrics of seconds
 	Timeout       *int64         `hcl:"timeout,optional"` */
-	TracingConfig *TracingConfig `hcl:"tracingconfig,optional"`
-	VpcConfig     *VpcConfig     `hcl:"vpcconfig,optional"`
+	TracingConfig  *TracingConfig `hcl:"tracingconfig,optional"`
+	VpcConfig      *Vpc           `hcl:"vpcconfig,optional"`
+	ZipFileInBytes *[]byte        `hcl:"zipfileinbytes,optional"`
 }
 
-type VpcConfig struct {
+type Vpc struct {
+	Subnets     []string `hcl:"subnets"`
+	SecurityIds []string `hcl:"securityids"`
 }
 
 type TracingConfig struct {
@@ -42,8 +64,8 @@ type TracingConfig struct {
 }
 
 type FileSystemConfig struct {
-	Arn            string `hcl:"arn"`
-	LocalMountPath string `hcl:"localmountpath"`
+	Arn            *string `hcl:"arn"`
+	LocalMountPath *string `hcl:"localmountpath"`
 }
 
 type DeadLetterConfig struct {
@@ -113,11 +135,11 @@ func (p *Platform) deploy(ctx context.Context, ui terminal.UI, artifact *registr
 	u.Update("Validating Lambda inputs")
 	// Validation Step
 	u.Step(terminal.StatusOK, "Lambda input validation is complete.  Creating zip file of the application.")
-	zipError := ZipCreationFunction(p)
+	zipError := p.ZipCreationFunction()
 	if zipError != nil {
-		u.Step(terminal.StatusError, "Creation of binary zipfile failed.  Application exiting.")
-		return nil, zipError
+		u.Step(terminal.ErrorBoldStyle, "Zipfile creation experienced a fata error.")
 	}
+	//p.config.Lambda.ZipFileInBytes = &zipBytes
 
 	//utils.DefaultSubnets(ctx, sess)
 

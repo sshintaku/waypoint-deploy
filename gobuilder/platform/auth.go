@@ -71,6 +71,7 @@ package platform
 //}
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 )
 
@@ -78,4 +79,10 @@ func CreateSession() *session.Session {
 	return session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
+}
+func CreateSessionWithRegion(region string) (*session.Session, error) {
+	client, clientError := session.NewSession(&aws.Config{
+		Region: aws.String(region),
+	})
+	return client, clientError
 }
